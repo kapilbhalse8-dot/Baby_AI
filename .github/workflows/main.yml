@@ -32,6 +32,10 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Fix missing Uri import
+        run: |
+          sed -i '/^package /a import android.net.Uri;' project/BabyAI_Android_Project_Updated/app/src/main/java/com/babyai/assistant/MainActivity.java
+
       - name: Build debug APK
         run: gradle -p project/BabyAI_Android_Project_Updated assembleDebug --stacktrace
 
