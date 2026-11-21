@@ -196,7 +196,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{"android.permission.RECORD_AUDIO"},REQ_AUDIO); return;
         }
         if(!SpeechRecognizer.isRecognitionAvailable(this)) { speak("बॉस, इस फोन में speech recognition उपलब्ध नहीं है।"); return; }
-        voiceActive=false; voiceHandler.removeCallbacksAndMessages(null);\n        if(screenReceiver!=null) try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}\n        if(recognizer!=null) recognizer.destroy();
+        if(recognizer!=null) recognizer.destroy();
         recognizer=SpeechRecognizer.createSpeechRecognizer(this);
         recognizer.setRecognitionListener(new RecognitionListener() {
             public void onReadyForSpeech(Bundle b) {}
@@ -215,7 +215,8 @@ public class MainActivity extends Activity {
         Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN");
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        voiceActive=true;\n        try { recognizer.startListening(i); } catch(Exception e) { voiceHandler.postDelayed(() -> listen(),1500); }
+        voiceActive=true;
+        try { recognizer.startListening(i); } catch(Exception e) { voiceHandler.postDelayed(() -> listen(),1500); }
     }
     void speak(String s) {
         if(tts!=null && femaleVoiceSelected) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
@@ -270,7 +271,9 @@ public class MainActivity extends Activity {
         }
     };
     @Override public void onDestroy() {
-        voiceActive=false; voiceHandler.removeCallbacksAndMessages(null);\n        try { unregisterReceiver(batteryReceiver); } catch(Exception ignored){}\n        if(screenReceiver!=null) try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
+        voiceActive=false; voiceHandler.removeCallbacksAndMessages(null);
+        try { unregisterReceiver(batteryReceiver); } catch(Exception ignored){}
+        if(screenReceiver!=null) try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
         if(recognizer!=null) recognizer.destroy();
         if(tts!=null) tts.shutdown();
         super.onDestroy();
