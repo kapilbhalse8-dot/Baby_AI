@@ -17,7 +17,7 @@ public class VoiceAssistantService extends Service {
     private static final int NOTIFICATION_ID=7101;
     private SpeechRecognizer recognizer;
     private TextToSpeech tts;
-    private boolean femaleVoice=false, listening=false, busy=false;
+    private boolean voiceAvailable=false, listening=false, busy=false;
     private Handler handler=new Handler(Looper.getMainLooper());
     private android.content.SharedPreferences prefs;
 
@@ -38,15 +38,18 @@ public class VoiceAssistantService extends Service {
             if(status==TextToSpeech.SUCCESS) {
                 tts.setLanguage(new Locale("hi","IN"));
                 if(Build.VERSION.SDK_INT>=21) try {
-                    Set<String> hints=new HashSet<>(Arrays.asList("female","woman","fem","स्त्री","महिला","-hia-"));
+                    android.speech.tts.Voice chosen=null;
                     for(android.speech.tts.Voice v:tts.getVoices()) {
                         String name=v.getName().toLowerCase(Locale.ROOT);
                         boolean hi=name.contains("hi-in")||name.contains("hindi")||name.contains("hin");
-                        boolean f=false; for(String h:hints) if(name.contains(h)) f=true;
-                        if(hi&&f&&!v.isNetworkConnectionRequired()){tts.setVoice(v);femaleVoice=true;break;}
+                        boolean female=name.contains("female")||name.contains("woman")||name.contains("fem")||name.contains("महिला")||name.contains("स्त्री");
+                        if(hi&&!female&&!v.isNetworkConnectionRequired()){chosen=v;break;}
                     }
-                } catch(Exception ignored) {}
-                tts.setSpeechRate(.95f);
+                    if(chosen!=null) tts.setVoice(chosen);
+                    voiceAvailable=true;
+                } catch(Exception ignored) { voiceAvailable=true; }
+                tts.setSpeechRate(.92f);
+                tts.setPitch(.88f);
                 startListening();
             }
         });
@@ -65,7 +68,7 @@ public class VoiceAssistantService extends Service {
         return START_STICKY;
     }
     private void say(String text) {
-        if(tts!=null&&femaleVoice) tts.speak(text,TextToSpeech.QUEUE_FLUSH,null,"babyai_service");
+        if(tts!=null&&voiceAvailable) tts.speak(text,TextToSpeech.QUEUE_FLUSH,null,"babyai_service");
     }
     private void startListening() {
         if(listening||busy) return;
@@ -136,7 +139,7 @@ public class VoiceAssistantService extends Service {
         HttpURLConnection c=null;
         try {
             String history=prefs.getString("history","");
-            String prompt="तुम Baby AI हो, हिंदी में बात करने वाली महिला सहायक। उपयोगकर्ता को बॉस कहो। संक्षिप्त, उपयोगी और ईमानदार जवाब दो।\nपिछली बातचीत:\n"+history+"\nनया सवाल: "+question;
+            String prompt="तुम Baby AI हो, JARVIS-प्रेरित शांत, समझदार और विनम्र हिंदी AI सहायक। उपयोगकर्ता को बॉस कहो। स्वाभाविक इंसानी बातचीत जैसी भाषा रखो; छोटे, उपयोगी और ईमानदार जवाब दो।\nपिछली बातचीत:\n"+history+"\nनया सवाल: "+question;
             JSONObject part=new JSONObject().put("text",prompt);
             JSONObject body=new JSONObject().put("contents",new JSONArray().put(new JSONObject().put("parts",new JSONArray().put(part))));
             c=(HttpURLConnection)new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent").openConnection();
