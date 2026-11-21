@@ -95,7 +95,7 @@ public class MainActivity extends Activity {
         String key=prefs.getString("gemini_api_key","");
         if(key.isEmpty()) {
             String answer="बॉस, ऑनलाइन AI चालू करने के लिए पहले नीचे 'ऑनलाइन AI सेटअप' में अपनी Gemini API Key डालें।";
-            add("Baby AI",answer); speak(answer); return;
+            add("Baby AI",answer); speak(answer); voiceHandler.postDelayed(() -> listen(), 2500); return;
         }
         add("Baby AI","बॉस, जवाब सोच रही हूँ...");
         final int placeholderIndex=messages.getChildCount()-1;
@@ -270,7 +270,7 @@ public class MainActivity extends Activity {
         }
     };
     @Override public void onDestroy() {
-        try { unregisterReceiver(batteryReceiver); } catch(Exception ignored){}
+        voiceActive=false; voiceHandler.removeCallbacksAndMessages(null);\n        try { unregisterReceiver(batteryReceiver); } catch(Exception ignored){}\n        if(screenReceiver!=null) try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}
         if(recognizer!=null) recognizer.destroy();
         if(tts!=null) tts.shutdown();
         super.onDestroy();
