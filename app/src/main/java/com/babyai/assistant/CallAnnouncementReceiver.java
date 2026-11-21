@@ -8,7 +8,7 @@ import android.speech.tts.TextToSpeech;
 import java.util.*;
 public class CallAnnouncementReceiver extends BroadcastReceiver {
  public void onReceive(Context c,Intent i) {
-  if(!Intent.ACTION_PHONE_STATE_CHANGED.equals(i.getAction())) return;
+  if(!android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(i.getAction())) return;
   String state=i.getStringExtra(android.telephony.TelephonyManager.EXTRA_STATE);
   SharedPreferences p=c.getSharedPreferences("baby_ai_local",Context.MODE_PRIVATE);
   if(android.telephony.TelephonyManager.EXTRA_STATE_IDLE.equals(state)){p.edit().putBoolean("call_announced",false).apply();return;}
