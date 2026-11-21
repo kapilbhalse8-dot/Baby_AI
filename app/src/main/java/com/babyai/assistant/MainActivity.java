@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
         registerScreenAnnouncements();
         voiceHandler.postDelayed(() -> listen(), 1200);
     }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) { super.onRequestPermissionsResult(requestCode,permissions,grantResults); if(requestCode==REQ_AUDIO || requestCode==42) voiceHandler.postDelayed(() -> listen(),900); }
     void requestCallAnnouncementPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
             String[] needed={"android.permission.READ_PHONE_STATE","android.permission.READ_CALL_LOG","android.permission.READ_CONTACTS"};
@@ -235,8 +236,8 @@ public class MainActivity extends Activity {
     }
     void registerScreenAnnouncements() {
         screenReceiver=new BroadcastReceiver(){ public void onReceive(Context c,Intent i){
-            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())) speak("बॉस, स्क्रीन बंद हो गई है। मैं यहीं हूँ।");
-            else if(Intent.ACTION_SCREEN_ON.equals(i.getAction())) speak("आप आ गए बॉस! आपका स्वागत है।");
+            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { if(recognizer!=null) try{recognizer.stopListening();}catch(Exception ignored){} speak("बॉस, स्क्रीन बंद हो गई है। मैं यहीं हूँ।"); }
+            else if(Intent.ACTION_SCREEN_ON.equals(i.getAction())) { speak("आप आ गए बॉस! आपका स्वागत है।"); voiceHandler.postDelayed(() -> listen(), 1800); }
         }};
         IntentFilter f=new IntentFilter(); f.addAction(Intent.ACTION_SCREEN_OFF); f.addAction(Intent.ACTION_SCREEN_ON);
         if(Build.VERSION.SDK_INT>=33) registerReceiver(screenReceiver,f,Context.RECEIVER_NOT_EXPORTED); else registerReceiver(screenReceiver,f);
