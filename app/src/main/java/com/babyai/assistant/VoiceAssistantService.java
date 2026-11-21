@@ -73,7 +73,7 @@ public class VoiceAssistantService extends Service {
         if(!SpeechRecognizer.isRecognitionAvailable(this)) {say("बॉस, इस फोन में आवाज़ पहचानने की सुविधा उपलब्ध नहीं है।");return;}
         listening=true;
         handler.postDelayed(()->{
-            if(!listening||isDestroyed())return;
+            if(!listening)return;
             try {
                 if(recognizer!=null)recognizer.destroy();
                 recognizer=SpeechRecognizer.createSpeechRecognizer(getApplicationContext());
@@ -83,7 +83,7 @@ public class VoiceAssistantService extends Service {
                     public void onRmsChanged(float v){}
                     public void onBufferReceived(byte[] b){}
                     public void onEndOfSpeech(){}
-                    public void onError(int e){if(listening&&!busy)handler.postDelayed(()->startListening(),900);}
+                    public void onError(int e){if(listening&&!busy){listening=false;handler.postDelayed(()->startListening(),900);}}
                     public void onResults(Bundle b){
                         ArrayList<String> a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                         if(a!=null&&!a.isEmpty())handleUtterance(a.get(0));
