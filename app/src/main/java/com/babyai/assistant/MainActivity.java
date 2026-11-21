@@ -53,6 +53,15 @@ public class MainActivity extends Activity {
         restore();
         if(messages.getChildCount()==0) add("Baby AI","नमस्ते बॉस! मैं Baby AI हूँ। आप लिखकर या बोलकर बात कर सकते हैं।");
         registerReceiver(batteryReceiver,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        requestCallAnnouncementPermissions();
+    }
+    void requestCallAnnouncementPermissions() {
+        if (Build.VERSION.SDK_INT >= 23) {
+            String[] needed={"android.permission.READ_PHONE_STATE","android.permission.READ_CALL_LOG","android.permission.READ_CONTACTS"};
+            ArrayList<String> missing=new ArrayList<>();
+            for(String p:needed) if(checkSelfPermission(p)!=PackageManager.PERMISSION_GRANTED) missing.add(p);
+            if(!missing.isEmpty()) new AlertDialog.Builder(this).setTitle("कॉल का नाम बोलकर बताने की अनुमति").setMessage("फोन लॉक होने पर भी कॉल करने वाले का नाम बोलने के लिए Phone, Call Log और Contacts की अनुमति दें।").setPositiveButton("अनुमति दें",(d,w)->requestPermissions(missing.toArray(new String[0]),42)).setNegativeButton("अभी नहीं",null).show();
+        }
     }
     void buildUi() {
         LinearLayout root=new LinearLayout(this); root.setOrientation(1);
