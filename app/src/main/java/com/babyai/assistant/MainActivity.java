@@ -17,6 +17,7 @@ public class MainActivity extends Activity {
     EditText input;
     TextToSpeech tts;
     SpeechRecognizer recognizer;
+    boolean femaleVoiceSelected=false;
     android.content.SharedPreferences prefs;
     static final int REQ_AUDIO=21;
     @Override public void onCreate(Bundle b) {
@@ -39,6 +40,7 @@ public class MainActivity extends Activity {
                             for (String hint : femaleHints) if (name.contains(hint)) femaleVoice = true;
                             if (hindiVoice && femaleVoice && !voice.isNetworkConnectionRequired()) {
                                 tts.setVoice(voice);
+                                femaleVoiceSelected=true;
                                 break;
                             }
                         }
@@ -207,7 +209,10 @@ public class MainActivity extends Activity {
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         recognizer.startListening(i);
     }
-    void speak(String s) { if(tts!=null) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai"); }
+    void speak(String s) {
+        if(tts!=null && femaleVoiceSelected) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
+        else if(tts!=null) Toast.makeText(this,"बॉस, फोन में हिंदी महिला आवाज़ उपलब्ध नहीं है। कृपया महिला हिंदी TTS आवाज़ इंस्टॉल करें।",Toast.LENGTH_LONG).show();
+    }
     void add(String who,String msg) {
         TextView t=new TextView(this); t.setText(who+": "+msg); t.setTextSize(16);
         t.setTextColor(Color.rgb(45,35,50)); t.setPadding(12,12,12,12);
