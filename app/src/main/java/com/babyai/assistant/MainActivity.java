@@ -64,6 +64,8 @@ public class MainActivity extends Activity {
         Button send=new Button(this); send.setText("भेजें"); send.setOnClickListener(v->sendText());
         Button mic=new Button(this); mic.setText("🎙 बोलें"); mic.setOnClickListener(v->listen());
         row.addView(send,new LinearLayout.LayoutParams(0,56,1)); row.addView(mic,new LinearLayout.LayoutParams(0,56,1)); root.addView(row);
+        Button setup=new Button(this); setup.setText("⚙ ऑनलाइन AI सेटअप / API Key");
+        setup.setOnClickListener(v->showApiKeyDialog()); root.addView(setup);
         LinearLayout apps=new LinearLayout(this);
         addAppButton(apps,"WhatsApp","com.whatsapp");
         addAppButton(apps,"YouTube","com.google.android.youtube");
@@ -80,7 +82,91 @@ public class MainActivity extends Activity {
     void sendText() {
         String q=input.getText().toString().trim(); if(q.isEmpty()) return;
         input.setText(""); add("बॉस",q);
-        String answer=offlineAnswer(q); add("Baby AI",answer); speak(answer);
+        String key=prefs.getString("gemini_api_key","");
+        if(key.isEmpty()) {
+            String answer="बॉस, ऑनलाइन AI चालू करने के लिए पहले नीचे 'ऑनलाइन AI सेटअप' में अपनी Gemini API Key डालें।";
+            add("Baby AI",answer); speak(answer); return;
+        }
+        add("Baby AI","बॉस, जवाब सोच रही हूँ...");
+        final int placeholderIndex=messages.getChildCount()-1;
+        new Thread(() -> {
+            String answer=askGemini(key,q);
+            runOnUiThread(() -> {
+                if(placeholderIndex>=0 && placeholderIndex<messages.getChildCount()) {
+                    ((TextView)messages.getChildAt(placeholderIndex)).setText("Baby AI: "+answer);
+                    save();
+                } else add("Baby AI",answer);
+                speak(answer);
+            });
+        }).start();
+    }
+    void showApiKeyDialog() {
+        EditText keyInput=new EditText(this);
+        keyInput.setSingleLine(true);
+        keyInput.setHint("Gemini API Key");
+        keyInput.setInputType(129);
+        keyInput.setText(prefs.getString("gemini_api_key",""));
+        new AlertDialog.Builder(this)
+            .setTitle("Baby AI ऑनलाइन सेटअप")
+            .setMessage("Google AI Studio से अपनी Gemini API Key बनाकर यहाँ डालें। Key इसी फोन में सेव होगी।")
+            .setView(keyInput)
+            .setPositiveButton("सेव करें",(d,w)->{
+                String key=keyInput.getText().toString().trim();
+                if(!key.isEmpty()) {
+                    prefs.edit().putString("gemini_api_key",key).apply();
+                    Toast.makeText(this,"API Key सेव हो गई। अब ऑनलाइन AI से बात करें।",Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNegativeButton("रद्द करें",null).show();
+    }
+    String askGemini(String key,String question) {
+        HttpURLConnection conn=null;
+        try {
+            StringBuilder history=new StringBuilder("तुम Baby AI हो, हिंदी में दोस्ताना और उपयोगी जवाब देने वाली महिला सहायक। उपयोगकर्ता को बॉस कहो। स्पष्ट, ईमानदार और सुरक्षित जवाब दो।\n\nबातचीत का संदर्भ:\n");
+            int start=Math.max(0,messages.getChildCount()-12);
+            for(int i=start;i<messages.getChildCount()-1;i++) {
+                Object item=messages.getChildAt(i);
+                if(item instanceof TextView) history.append(((TextView)item).getText()).append("\n");
+            }
+            history.append("\nनया सवाल: ").append(question);
+            org.json.JSONObject part=new org.json.JSONObject().put("text",history.toString());
+            org.json.JSONArray parts=new org.json.JSONArray().put(part);
+            org.json.JSONObject content=new org.json.JSONObject().put("parts",parts);
+            org.json.JSONObject body=new org.json.JSONObject().put("contents",new org.json.JSONArray().put(content));
+            java.net.URL url=new java.net.URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
+            conn=(HttpURLConnection)url.openConnection();
+            conn.setRequestMethod("POST"); conn.setConnectTimeout(20000); conn.setReadTimeout(30000);
+            conn.setDoOutput(true); conn.setRequestProperty("Content-Type","application/json");
+            conn.setRequestProperty("x-goog-api-key",key);
+            byte[] data=body.toString().getBytes("UTF-8");
+            conn.getOutputStream().write(data);
+            int status=conn.getResponseCode();
+            java.io.InputStream stream=(status>=200 && status<300)?conn.getInputStream():conn.getErrorStream();
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+            byte[] buf=new byte[4096]; int n;
+            while((n=stream.read(buf))!=-1) out.write(buf,0,n);
+            String response=new String(out.toByteArray(),"UTF-8");
+            if(status<200 || status>=300) {
+                if(status==400 || status==403) return "बॉस, API Key गलत हो सकती है या इसकी अनुमति नहीं है। सेटअप में Key जाँचें।";
+                if(status==429) return "बॉस, अभी Gemini की उपयोग सीमा पूरी है। थोड़ी देर बाद कोशिश करें।";
+                return "बॉस, AI सेवा से जवाब नहीं मिला (त्रुटि "+status+")। इंटरनेट जाँचकर फिर कोशिश करें।";
+            }
+            org.json.JSONObject json=new org.json.JSONObject(response);
+            org.json.JSONArray candidates=json.optJSONArray("candidates");
+            if(candidates!=null && candidates.length()>0) {
+                org.json.JSONObject candidate=candidates.getJSONObject(0);
+                org.json.JSONObject answerContent=candidate.optJSONObject("content");
+                org.json.JSONArray answerParts=answerContent==null?null:answerContent.optJSONArray("parts");
+                if(answerParts!=null) {
+                    StringBuilder answer=new StringBuilder();
+                    for(int i=0;i<answerParts.length();i++) answer.append(answerParts.getJSONObject(i).optString("text",""));
+                    if(answer.length()>0) return answer.toString().trim();
+                }
+            }
+            return "बॉस, इस बार AI का जवाब खाली आया। फिर से पूछें।";
+        } catch(Exception e) {
+            return "बॉस, इंटरनेट या AI कनेक्शन में समस्या है। कनेक्शन जाँचकर फिर कोशिश करें।";
+        } finally { if(conn!=null) conn.disconnect(); }
     }
     String offlineAnswer(String q) {
         String s=q.toLowerCase(Locale.ROOT);
