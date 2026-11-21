@@ -10,6 +10,7 @@ import android.speech.tts.TextToSpeech;
 import android.view.*;
 import android.widget.*;
 import java.util.*;
+import java.net.HttpURLConnection;
 
 public class MainActivity extends Activity {
     LinearLayout messages;
@@ -29,7 +30,7 @@ public class MainActivity extends Activity {
                 if (Build.VERSION.SDK_INT >= 21) {
                     try {
                         Set<String> femaleHints = new HashSet<>(Arrays.asList(
-                            "female", "woman", "fem", "स्त्री", "महिला"
+                            "female", "woman", "fem", "स्त्री", "महिला", "-hia-"
                         ));
                         for (android.speech.tts.Voice voice : tts.getVoices()) {
                             String name = voice.getName().toLowerCase(Locale.ROOT);
