@@ -194,30 +194,17 @@ public class MainActivity extends Activity {
     void launch(String pkg) { Intent i=getPackageManager().getLaunchIntentForPackage(pkg); if(i!=null) startActivity(i); }
     void listen() {
         if(checkSelfPermission("android.permission.RECORD_AUDIO")!=PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{"android.permission.RECORD_AUDIO"},REQ_AUDIO); return;
+            requestPermissions(new String[]{"android.permission.RECORD_AUDIO"},REQ_AUDIO);
+            return;
         }
-        if(!SpeechRecognizer.isRecognitionAvailable(this)) { speak("बॉस, इस फोन में speech recognition उपलब्ध नहीं है।"); return; }
-        if(recognizer!=null) recognizer.destroy();
-        recognizer=SpeechRecognizer.createSpeechRecognizer(this);
-        recognizer.setRecognitionListener(new RecognitionListener() {
-            public void onReadyForSpeech(Bundle b) {}
-            public void onBeginningOfSpeech() {}
-            public void onRmsChanged(float f) {}
-            public void onBufferReceived(byte[] b) {}
-            public void onEndOfSpeech() {}
-            public void onError(int e) { if(voiceActive) voiceHandler.postDelayed(() -> listen(), 1200); }
-            public void onResults(Bundle b) {
-                ArrayList<String> a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if(a!=null&&!a.isEmpty()) { input.setText(a.get(0)); sendText(); } else if(voiceActive) voiceHandler.postDelayed(() -> listen(), 900);
-            }
-            public void onPartialResults(Bundle b) {}
-            public void onEvent(int t,Bundle b) {}
-        });
-        Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN");
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        voiceActive=true;
-        try { recognizer.startListening(i); } catch(Exception e) { voiceHandler.postDelayed(() -> listen(),1500); }
+        try {
+            Intent serviceIntent=new Intent(this,VoiceAssistantService.class);
+            serviceIntent.setAction("START_LISTENING");
+            if(Build.VERSION.SDK_INT>=26) startForegroundService(serviceIntent); else startService(serviceIntent);
+            voiceActive=true;
+        } catch(Exception e) {
+            Toast.makeText(this,"बॉस, Voice Service शुरू नहीं हो सकी। ऐप दोबारा खोलें।",Toast.LENGTH_LONG).show();
+        }
     }
     void speak(String s) {
         if(tts!=null && femaleVoiceSelected) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
