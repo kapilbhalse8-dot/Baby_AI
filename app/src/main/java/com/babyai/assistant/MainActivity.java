@@ -20,6 +20,9 @@ public class MainActivity extends Activity {
     boolean femaleVoiceSelected=false;
     android.content.SharedPreferences prefs;
     static final int REQ_AUDIO=21;
+    Handler voiceHandler=new Handler(Looper.getMainLooper());
+    boolean voiceActive=false;
+    BroadcastReceiver screenReceiver;
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         prefs=getSharedPreferences("baby_ai_local",MODE_PRIVATE);
@@ -54,6 +57,8 @@ public class MainActivity extends Activity {
         if(messages.getChildCount()==0) add("Baby AI","नमस्ते बॉस! मैं Baby AI हूँ। आप लिखकर या बोलकर बात कर सकते हैं।");
         registerReceiver(batteryReceiver,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         requestCallAnnouncementPermissions();
+        registerScreenAnnouncements();
+        voiceHandler.postDelayed(() -> listen(), 1200);
     }
     void requestCallAnnouncementPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
@@ -71,18 +76,10 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);
         messages=new LinearLayout(this); messages.setOrientation(1); scroll.addView(messages);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        input=new EditText(this); input.setHint("बॉस, यहाँ लिखें..."); root.addView(input);
-        LinearLayout row=new LinearLayout(this);
-        Button send=new Button(this); send.setText("भेजें"); send.setOnClickListener(v->sendText());
-        Button mic=new Button(this); mic.setText("🎙 बोलें"); mic.setOnClickListener(v->listen());
-        row.addView(send,new LinearLayout.LayoutParams(0,56,1)); row.addView(mic,new LinearLayout.LayoutParams(0,56,1)); root.addView(row);
-        Button setup=new Button(this); setup.setText("⚙ ऑनलाइन AI सेटअप / API Key");
-        setup.setOnClickListener(v->showApiKeyDialog()); root.addView(setup);
-        LinearLayout apps=new LinearLayout(this);
-        addAppButton(apps,"WhatsApp","com.whatsapp");
-        addAppButton(apps,"YouTube","com.google.android.youtube");
-        addAppButton(apps,"Chrome","com.android.chrome");
-        root.addView(apps); setContentView(root);
+        TextView status=new TextView(this); status.setText("🎙 बॉस, बोलिए… मैं सुन रही हूँ"); status.setTextSize(17); status.setGravity(17); root.addView(status,new LinearLayout.LayoutParams(-1,60));
+        input=new EditText(this); input.setHint("वैकल्पिक: यहाँ लिखें"); input.setSingleLine(false); root.addView(input);
+        input.setOnEditorActionListener((v,action,event)->{sendText();return true;});
+        setContentView(root);
     }
     void addAppButton(LinearLayout row,String label,String pkg) {
         Button b=new Button(this); b.setText(label); b.setOnClickListener(v->{
@@ -94,6 +91,7 @@ public class MainActivity extends Activity {
     void sendText() {
         String q=input.getText().toString().trim(); if(q.isEmpty()) return;
         input.setText(""); add("बॉस",q);
+        if(handleVoiceCommand(q)) { voiceHandler.postDelayed(() -> listen(), 1800); return; }
         String key=prefs.getString("gemini_api_key","");
         if(key.isEmpty()) {
             String answer="बॉस, ऑनलाइन AI चालू करने के लिए पहले नीचे 'ऑनलाइन AI सेटअप' में अपनी Gemini API Key डालें।";
@@ -109,6 +107,7 @@ public class MainActivity extends Activity {
                     save();
                 } else add("Baby AI",answer);
                 speak(answer);
+                voiceHandler.postDelayed(() -> listen(), Math.max(2500, answer.length()*65L));
             });
         }).start();
     }
@@ -197,7 +196,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{"android.permission.RECORD_AUDIO"},REQ_AUDIO); return;
         }
         if(!SpeechRecognizer.isRecognitionAvailable(this)) { speak("बॉस, इस फोन में speech recognition उपलब्ध नहीं है।"); return; }
-        if(recognizer!=null) recognizer.destroy();
+        voiceActive=false; voiceHandler.removeCallbacksAndMessages(null);\n        if(screenReceiver!=null) try{unregisterReceiver(screenReceiver);}catch(Exception ignored){}\n        if(recognizer!=null) recognizer.destroy();
         recognizer=SpeechRecognizer.createSpeechRecognizer(this);
         recognizer.setRecognitionListener(new RecognitionListener() {
             public void onReadyForSpeech(Bundle b) {}
@@ -205,10 +204,10 @@ public class MainActivity extends Activity {
             public void onRmsChanged(float f) {}
             public void onBufferReceived(byte[] b) {}
             public void onEndOfSpeech() {}
-            public void onError(int e) { speak("बॉस, आवाज़ समझ नहीं आई। फिर कोशिश करें।"); }
+            public void onError(int e) { if(voiceActive) voiceHandler.postDelayed(() -> listen(), 1200); }
             public void onResults(Bundle b) {
                 ArrayList<String> a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if(a!=null&&!a.isEmpty()) { input.setText(a.get(0)); sendText(); }
+                if(a!=null&&!a.isEmpty()) { input.setText(a.get(0)); sendText(); } else if(voiceActive) voiceHandler.postDelayed(() -> listen(), 900);
             }
             public void onPartialResults(Bundle b) {}
             public void onEvent(int t,Bundle b) {}
@@ -216,11 +215,30 @@ public class MainActivity extends Activity {
         Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN");
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        recognizer.startListening(i);
+        voiceActive=true;\n        try { recognizer.startListening(i); } catch(Exception e) { voiceHandler.postDelayed(() -> listen(),1500); }
     }
     void speak(String s) {
         if(tts!=null && femaleVoiceSelected) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
         else if(tts!=null) Toast.makeText(this,"बॉस, फोन में हिंदी महिला आवाज़ उपलब्ध नहीं है। कृपया महिला हिंदी TTS आवाज़ इंस्टॉल करें।",Toast.LENGTH_LONG).show();
+    }
+    boolean handleVoiceCommand(String q) {
+        String s=q.toLowerCase(Locale.ROOT);
+        if(s.contains("api key") || s.contains("एपीआई की") || s.contains("ऑनलाइन सेटअप")) { showApiKeyDialog(); return true; }
+        if(s.contains("whatsapp") || s.contains("व्हाट्सएप")) { launch("com.whatsapp"); speak("बॉस, WhatsApp खोल रही हूँ।"); return true; }
+        if(s.contains("youtube") || s.contains("यूट्यूब")) { launch("com.google.android.youtube"); speak("बॉस, YouTube खोल रही हूँ।"); return true; }
+        if(s.contains("chrome") || s.contains("क्रोम") || s.contains("ब्राउज़र")) { launch("com.android.chrome"); speak("बॉस, Chrome खोल रही हूँ।"); return true; }
+        if(s.contains("समय बताओ") || s.contains("टाइम बताओ")) { speak("बॉस, अभी समय "+new java.text.SimpleDateFormat("hh:mm a",Locale.getDefault()).format(new Date())+" है।"); return true; }
+        if(s.contains("सुनना बंद") || s.contains("आवाज़ बंद")) { voiceActive=false; if(recognizer!=null)recognizer.stopListening(); speak("ठीक है बॉस, सुनना रोक रही हूँ।"); return true; }
+        if(s.contains("फिर से सुनो") || s.contains("सुनना शुरू")) { voiceActive=true; speak("जी बॉस, सुन रही हूँ।"); voiceHandler.postDelayed(()->listen(),1200); return true; }
+        return false;
+    }
+    void registerScreenAnnouncements() {
+        screenReceiver=new BroadcastReceiver(){ public void onReceive(Context c,Intent i){
+            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())) speak("बॉस, स्क्रीन बंद हो गई है। मैं यहीं हूँ।");
+            else if(Intent.ACTION_SCREEN_ON.equals(i.getAction())) speak("आप आ गए बॉस! आपका स्वागत है।");
+        }};
+        IntentFilter f=new IntentFilter(); f.addAction(Intent.ACTION_SCREEN_OFF); f.addAction(Intent.ACTION_SCREEN_ON);
+        if(Build.VERSION.SDK_INT>=33) registerReceiver(screenReceiver,f,Context.RECEIVER_NOT_EXPORTED); else registerReceiver(screenReceiver,f);
     }
     void add(String who,String msg) {
         TextView t=new TextView(this); t.setText(who+": "+msg); t.setTextSize(16);
