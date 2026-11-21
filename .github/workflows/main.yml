@@ -21,6 +21,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: sdkmanager "build-tools;35.0.0"
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -59,8 +65,8 @@ jobs:
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
-          apksigner verify --verbose "$APK"
-          apksigner verify --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
