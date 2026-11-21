@@ -123,11 +123,10 @@ public class MainActivity extends Activity {
         java.net.HttpURLConnection conn=null;
         try {
             StringBuilder history=new StringBuilder("तुम Baby AI हो, हिंदी में दोस्ताना और उपयोगी जवाब देने वाली महिला सहायक। उपयोगकर्ता को बॉस कहो। स्पष्ट, ईमानदार और सुरक्षित जवाब दो।\n\nबातचीत का संदर्भ:\n");
-            int start=Math.max(0,messages.getChildCount()-12);
-            for(int i=start;i<messages.getChildCount()-1;i++) {
-                Object item=messages.getChildAt(i);
-                if(item instanceof TextView) history.append(((TextView)item).getText()).append("\n");
-            }
+            String savedHistory=prefs.getString("history","");
+            String[] lines=savedHistory.split("\\n");
+            int start=Math.max(0,lines.length-12);
+            for(int i=start;i<lines.length;i++) history.append(lines[i]).append("\n");
             history.append("\nनया सवाल: ").append(question);
             org.json.JSONObject part=new org.json.JSONObject().put("text",history.toString());
             org.json.JSONArray parts=new org.json.JSONArray().put(part);
