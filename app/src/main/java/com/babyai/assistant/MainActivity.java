@@ -120,7 +120,7 @@ public class MainActivity extends Activity {
             .setNegativeButton("रद्द करें",null).show();
     }
     String askGemini(String key,String question) {
-        HttpURLConnection conn=null;
+        java.net.HttpURLConnection conn=null;
         try {
             StringBuilder history=new StringBuilder("तुम Baby AI हो, हिंदी में दोस्ताना और उपयोगी जवाब देने वाली महिला सहायक। उपयोगकर्ता को बॉस कहो। स्पष्ट, ईमानदार और सुरक्षित जवाब दो।\n\nबातचीत का संदर्भ:\n");
             int start=Math.max(0,messages.getChildCount()-12);
