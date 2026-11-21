@@ -105,7 +105,7 @@ public class VoiceAssistantService extends Service {
             listening=false;if(recognizer!=null)recognizer.cancel();say("ठीक है बॉस, मैंने सुनना रोक दिया है।");return;
         }
         if(s.contains("फिर से सुनो")||s.contains("सुनना शुरू")||s.contains("बेबी सुनो")) {
-            listening=true;say("जी बॉस, सुन रही हूँ।");startListening();return;
+            say("जी बॉस, सुन रही हूँ।");startListening();return;
         }
         if(s.contains("whatsapp")||s.contains("व्हाट्सएप")){openApp("com.whatsapp","WhatsApp");return;}
         if(s.contains("youtube")||s.contains("यूट्यूब")){openApp("com.google.android.youtube","YouTube");return;}
@@ -128,7 +128,7 @@ public class VoiceAssistantService extends Service {
             String answer=callGemini(key,question);
             handler.post(()->{
                 busy=false;say(answer);
-                handler.postDelayed(()->{listening=true;startListening();},Math.max(3000,Math.min(18000,answer.length()*75L)));
+                handler.postDelayed(()->startListening(),Math.max(3000,Math.min(18000,answer.length()*75L)));
             });
         }).start();
     }
