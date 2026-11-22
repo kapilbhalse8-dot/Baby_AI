@@ -35,23 +35,31 @@ public class VoiceAssistantService extends Service {
         else if(Build.VERSION.SDK_INT>=29) startForeground(NOTIFICATION_ID,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         else startForeground(NOTIFICATION_ID,n);
         tts=new TextToSpeech(this,status->{
-            if(status==TextToSpeech.SUCCESS) {
-                tts.setLanguage(new Locale("hi","IN"));
-                if(Build.VERSION.SDK_INT>=21) try {
-                    android.speech.tts.Voice chosen=null;
-                    for(android.speech.tts.Voice v:tts.getVoices()) {
-                        String name=v.getName().toLowerCase(Locale.ROOT);
-                        boolean hi=name.contains("hi-in")||name.contains("hindi")||name.contains("hin");
-                        boolean female=name.contains("female")||name.contains("woman")||name.contains("fem")||name.contains("महिला")||name.contains("स्त्री");
-                        if(hi&&!female&&!v.isNetworkConnectionRequired()){chosen=v;break;}
+            if(status!=TextToSpeech.SUCCESS) return;
+            int languageResult=tts.setLanguage(new Locale("hi","IN"));
+            if(languageResult==TextToSpeech.LANG_MISSING_DATA ||
+               languageResult==TextToSpeech.LANG_NOT_SUPPORTED) return;
+
+            // Baby AI must never fall back to a male/default voice.
+            if(Build.VERSION.SDK_INT>=21) try {
+                for(android.speech.tts.Voice v:tts.getVoices()) {
+                    String name=v.getName().toLowerCase(Locale.ROOT);
+                    boolean hindi=name.contains("hi-in")||name.contains("hindi")||name.contains("hin");
+                    boolean female=name.contains("female")||name.contains("woman")||
+                        name.contains("fem")||name.contains("महिला")||name.contains("स्त्री")||
+                        name.contains("-hia-");
+                    if(hindi&&female&&!v.isNetworkConnectionRequired()) {
+                        tts.setVoice(v);
+                        voiceAvailable=true;
+                        break;
                     }
-                    if(chosen!=null) tts.setVoice(chosen);
-                    voiceAvailable=true;
-                } catch(Exception ignored) { voiceAvailable=true; }
+                }
+            } catch(Exception ignored) {}
+            if(voiceAvailable) {
                 tts.setSpeechRate(.92f);
-                tts.setPitch(.88f);
-                startListening();
+                tts.setPitch(.98f);
             }
+            if(prefs.getBoolean("voice_listening_enabled",true)) startListening();
         });
     }
     private void createChannel() {
@@ -63,14 +71,21 @@ public class VoiceAssistantService extends Service {
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId) {
         String action=intent==null?null:intent.getAction();
-        if("STOP_LISTENING".equals(action)){listening=false;if(recognizer!=null)recognizer.cancel();}
-        else if("START_LISTENING".equals(action)){startListening();}
+        if("STOP_LISTENING".equals(action)){
+            prefs.edit().putBoolean("voice_listening_enabled",false).apply();
+            listening=false;
+            if(recognizer!=null)recognizer.cancel();
+        } else if("START_LISTENING".equals(action)){
+            prefs.edit().putBoolean("voice_listening_enabled",true).apply();
+            startListening();
+        }
         return START_STICKY;
     }
     private void say(String text) {
         if(tts!=null&&voiceAvailable) tts.speak(text,TextToSpeech.QUEUE_FLUSH,null,"babyai_service");
     }
     private void startListening() {
+        if(!prefs.getBoolean("voice_listening_enabled",true)) return;
         if(listening||busy) return;
         if(checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED) return;
         if(!SpeechRecognizer.isRecognitionAvailable(this)) {say("बॉस, इस फोन में आवाज़ पहचानने की सुविधा उपलब्ध नहीं है।");return;}
@@ -88,9 +103,11 @@ public class VoiceAssistantService extends Service {
                     public void onEndOfSpeech(){}
                     public void onError(int e){if(listening&&!busy){listening=false;handler.postDelayed(()->startListening(),900);}}
                     public void onResults(Bundle b){
+                        listening=false;
                         ArrayList<String> a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        if(a!=null&&!a.isEmpty())handleUtterance(a.get(0));
-                        else if(listening)handler.postDelayed(()->startListening(),700);
+                        if(a!=null&&!a.isEmpty()) handleUtterance(a.get(0));
+                        else if(prefs.getBoolean("voice_listening_enabled",true))
+                            handler.postDelayed(()->startListening(),700);
                     }
                     public void onPartialResults(Bundle b){}
                     public void onEvent(int t,Bundle b){}
@@ -105,10 +122,17 @@ public class VoiceAssistantService extends Service {
     private void handleUtterance(String q) {
         String s=q.toLowerCase(Locale.ROOT).trim();
         if(s.contains("सुनना बंद")||s.contains("आवाज़ बंद")||s.contains("चुप हो जाओ")) {
-            listening=false;if(recognizer!=null)recognizer.cancel();say("ठीक है बॉस, मैंने सुनना रोक दिया है।");return;
+            prefs.edit().putBoolean("voice_listening_enabled",false).apply();
+            listening=false;
+            if(recognizer!=null)recognizer.cancel();
+            say("ठीक है बॉस, मैंने सुनना रोक दिया है।");
+            return;
         }
         if(s.contains("फिर से सुनो")||s.contains("सुनना शुरू")||s.contains("बेबी सुनो")) {
-            say("जी बॉस, सुन रही हूँ।");startListening();return;
+            prefs.edit().putBoolean("voice_listening_enabled",true).apply();
+            say("जी बॉस, सुन रही हूँ।");
+            startListening();
+            return;
         }
         if(s.contains("whatsapp")||s.contains("व्हाट्सएप")){openApp("com.whatsapp","WhatsApp");return;}
         if(s.contains("youtube")||s.contains("यूट्यूब")){openApp("com.google.android.youtube","YouTube");return;}
@@ -129,6 +153,10 @@ public class VoiceAssistantService extends Service {
         busy=true;listening=false;
         new Thread(()->{
             String answer=callGemini(key,question);
+            String oldHistory=prefs.getString("history","");
+            String newHistory=(oldHistory.isEmpty()?"":oldHistory+"\n")+
+                "बॉस: "+question+"\nBaby AI: "+answer;
+            prefs.edit().putString("history",newHistory).apply();
             handler.post(()->{
                 busy=false;say(answer);
                 handler.postDelayed(()->startListening(),Math.max(3000,Math.min(18000,answer.length()*75L)));
