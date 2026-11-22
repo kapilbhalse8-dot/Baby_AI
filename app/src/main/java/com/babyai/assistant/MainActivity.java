@@ -72,8 +72,12 @@ public class MainActivity extends Activity {
     void buildUi() {
         LinearLayout root=new LinearLayout(this); root.setOrientation(1);
         root.setPadding(18,18,18,18); root.setBackgroundColor(Color.rgb(250,242,255));
+        LinearLayout header=new LinearLayout(this); header.setOrientation(0); header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=new TextView(this); title.setText("💗 Baby AI"); title.setTextSize(26); title.setTextColor(Color.rgb(120,40,150)); title.setGravity(17);
-        root.addView(title,new LinearLayout.LayoutParams(-1,64));
+        header.addView(title,new LinearLayout.LayoutParams(0,64,1));
+        Button settingsButton=new Button(this); settingsButton.setText("⚙ सेटिंग"); settingsButton.setOnClickListener(v->showSettings());
+        header.addView(settingsButton,new LinearLayout.LayoutParams(-2,56));
+        root.addView(header,new LinearLayout.LayoutParams(-1,64));
         ScrollView scroll=new ScrollView(this);
         messages=new LinearLayout(this); messages.setOrientation(1); scroll.addView(messages);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -111,6 +115,50 @@ public class MainActivity extends Activity {
                 voiceHandler.postDelayed(() -> listen(), Math.max(2500, answer.length()*65L));
             });
         }).start();
+    }
+    void showSettings() {
+        LinearLayout page=new LinearLayout(this); page.setOrientation(1); page.setPadding(20,8,20,8);
+        ScrollView scroll=new ScrollView(this); scroll.addView(page);
+        addSettingSwitch(page,"आवाज़ में जवाब","voice_reply_enabled",true);
+        addSettingSwitch(page,"अपने आप सुनना","auto_listen_enabled",true);
+        addSettingSwitch(page,"20% बैटरी अलर्ट","battery_alert_enabled",true);
+        addSettingSwitch(page,"स्क्रीन ऑन/ऑफ स्वागत संदेश","screen_greeting_enabled",true);
+        addSettingSwitch(page,"बातचीत सेव करना","history_enabled",true);
+        addSettingSwitch(page,"कॉल करने वाले का नाम बताना","call_announce_enabled",true);
+        addSettingSwitch(page,"महिला हिंदी आवाज़ को प्राथमिकता","female_voice_only",true);
+        Button api=new Button(this); api.setText("Gemini API Key सेट / बदलें"); api.setOnClickListener(v->showApiKeyDialog()); page.addView(api);
+        Button apps=new Button(this); apps.setText("ऐप शॉर्टकट: WhatsApp / YouTube / Chrome"); apps.setOnClickListener(v->showAppShortcuts()); page.addView(apps);
+        Button custom=new Button(this); custom.setText("अपनी कस्टम सेटिंग जोड़ें"); custom.setOnClickListener(v->showAddCustomSetting()); page.addView(custom);
+        Button viewCustom=new Button(this); viewCustom.setText("कस्टम सेटिंग देखें"); viewCustom.setOnClickListener(v->showCustomSettings()); page.addView(viewCustom);
+        Button clear=new Button(this); clear.setText("बातचीत का इतिहास साफ करें"); clear.setOnClickListener(v->new AlertDialog.Builder(this).setMessage("सेव की गई बातचीत मिटा दें?").setPositiveButton("मिटाएँ",(d,w)->{messages.removeAllViews();prefs.edit().remove("history").apply();}).setNegativeButton("रद्द",null).show()); page.addView(clear);
+        new AlertDialog.Builder(this).setTitle("⚙ Baby AI – A to Z Settings").setView(scroll).setPositiveButton("बंद",null).show();
+    }
+    void addSettingSwitch(LinearLayout page,String label,String key,boolean defaultValue) {
+        Switch sw=new Switch(this); sw.setText(label); sw.setTextSize(16); sw.setPadding(8,14,8,14);
+        sw.setChecked(prefs.getBoolean(key,defaultValue));
+        sw.setOnCheckedChangeListener((button,checked)->{
+            prefs.edit().putBoolean(key,checked).apply();
+            Toast.makeText(this,label+(checked?" चालू":" बंद"),Toast.LENGTH_SHORT).show();
+        });
+        page.addView(sw,new LinearLayout.LayoutParams(-1,-2));
+    }
+    void showAppShortcuts() {
+        String[] labels={"WhatsApp","YouTube","Chrome"};
+        String[] packages={"com.whatsapp","com.google.android.youtube","com.android.chrome"};
+        new AlertDialog.Builder(this).setTitle("ऐप खोलें").setItems(labels,(d,w)->launch(packages[w])).show();
+    }
+    void showAddCustomSetting() {
+        LinearLayout box=new LinearLayout(this); box.setOrientation(1); box.setPadding(20,8,20,8);
+        EditText name=new EditText(this); name.setHint("सेटिंग का नाम"); box.addView(name);
+        EditText value=new EditText(this); value.setHint("सेटिंग की वैल्यू"); box.addView(value);
+        new AlertDialog.Builder(this).setTitle("कस्टम सेटिंग जोड़ें").setView(box).setPositiveButton("सेव",(d,w)->{
+            String n=name.getText().toString().trim(),v=value.getText().toString().trim();
+            if(!n.isEmpty()){String all=prefs.getString("custom_settings","");all+=(all.isEmpty()?"":"\\n")+n+" = "+v;prefs.edit().putString("custom_settings",all).apply();Toast.makeText(this,"सेटिंग सेव हो गई",Toast.LENGTH_SHORT).show();}
+        }).setNegativeButton("रद्द",null).show();
+    }
+    void showCustomSettings() {
+        String all=prefs.getString("custom_settings","");
+        new AlertDialog.Builder(this).setTitle("कस्टम सेटिंग").setMessage(all.isEmpty()?"अभी कोई कस्टम सेटिंग नहीं है।":all).setPositiveButton("ठीक",null).show();
     }
     void showApiKeyDialog() {
         EditText keyInput=new EditText(this);
@@ -207,7 +255,7 @@ public class MainActivity extends Activity {
         }
     }
     void speak(String s) {
-        if(tts!=null && femaleVoiceSelected) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
+        if(tts!=null && femaleVoiceSelected && prefs.getBoolean("voice_reply_enabled",true)) tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"babyai");
         else if(tts!=null) Toast.makeText(this,"बॉस, फोन में हिंदी महिला आवाज़ उपलब्ध नहीं है। कृपया महिला हिंदी TTS आवाज़ इंस्टॉल करें।",Toast.LENGTH_LONG).show();
     }
     boolean handleVoiceCommand(String q) {
@@ -239,7 +287,7 @@ public class MainActivity extends Activity {
         for(int i=0;i<messages.getChildCount();i++) {
             if(i>0)b.append("\n"); b.append(((TextView)messages.getChildAt(i)).getText());
         }
-        prefs.edit().putString("history",b.toString()).apply();
+        if(prefs.getBoolean("history_enabled",true)) prefs.edit().putString("history",b.toString()).apply();
     }
     void restore() {
         String h=prefs.getString("history","");
@@ -251,7 +299,7 @@ public class MainActivity extends Activity {
     BroadcastReceiver batteryReceiver=new BroadcastReceiver() {
         public void onReceive(Context c,Intent i) {
             int level=i.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
-            if(level==20 && prefs.getBoolean("battery20shown",false)==false) {
+            if(level==20 && prefs.getBoolean("battery_alert_enabled",true) && prefs.getBoolean("battery20shown",false)==false) {
                 prefs.edit().putBoolean("battery20shown",true).apply();
                 speak("बॉस, आपके फोन की बैटरी 20 प्रतिशत रह गई है।");
             }
