@@ -58,9 +58,9 @@ public class MainActivity extends Activity {
         registerReceiver(batteryReceiver,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         requestCallAnnouncementPermissions();
         registerScreenAnnouncements();
-        voiceHandler.postDelayed(() -> listen(), 1200);
+        if(prefs.getBoolean("auto_listen_enabled",true)) voiceHandler.postDelayed(() -> listen(), 1200);
     }
-    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) { super.onRequestPermissionsResult(requestCode,permissions,grantResults); if(requestCode==REQ_AUDIO || requestCode==42) voiceHandler.postDelayed(() -> listen(),900); }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) { super.onRequestPermissionsResult(requestCode,permissions,grantResults); if((requestCode==REQ_AUDIO || requestCode==42) && prefs.getBoolean("auto_listen_enabled",true)) voiceHandler.postDelayed(() -> listen(),900); }
     void requestCallAnnouncementPermissions() {
         if (Build.VERSION.SDK_INT >= 23) {
             String[] needed={"android.permission.READ_PHONE_STATE","android.permission.READ_CALL_LOG","android.permission.READ_CONTACTS"};
@@ -124,8 +124,7 @@ public class MainActivity extends Activity {
         addSettingSwitch(page,"20% बैटरी अलर्ट","battery_alert_enabled",true);
         addSettingSwitch(page,"स्क्रीन ऑन/ऑफ स्वागत संदेश","screen_greeting_enabled",true);
         addSettingSwitch(page,"बातचीत सेव करना","history_enabled",true);
-        addSettingSwitch(page,"कॉल करने वाले का नाम बताना","call_announce_enabled",true);
-        addSettingSwitch(page,"महिला हिंदी आवाज़ को प्राथमिकता","female_voice_only",true);
+        addSettingSwitch(page,"महिला हिंदी आवाज़","voice_reply_enabled",true);
         Button api=new Button(this); api.setText("Gemini API Key सेट / बदलें"); api.setOnClickListener(v->showApiKeyDialog()); page.addView(api);
         Button apps=new Button(this); apps.setText("ऐप शॉर्टकट: WhatsApp / YouTube / Chrome"); apps.setOnClickListener(v->showAppShortcuts()); page.addView(apps);
         Button custom=new Button(this); custom.setText("अपनी कस्टम सेटिंग जोड़ें"); custom.setOnClickListener(v->showAddCustomSetting()); page.addView(custom);
@@ -241,6 +240,7 @@ public class MainActivity extends Activity {
     }
     void launch(String pkg) { Intent i=getPackageManager().getLaunchIntentForPackage(pkg); if(i!=null) startActivity(i); }
     void listen() {
+        if(!prefs.getBoolean("auto_listen_enabled",true)) return;
         if(checkSelfPermission("android.permission.RECORD_AUDIO")!=PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{"android.permission.RECORD_AUDIO"},REQ_AUDIO);
             return;
@@ -271,8 +271,8 @@ public class MainActivity extends Activity {
     }
     void registerScreenAnnouncements() {
         screenReceiver=new BroadcastReceiver(){ public void onReceive(Context c,Intent i){
-            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { if(recognizer!=null) try{recognizer.stopListening();}catch(Exception ignored){} speak("बॉस, स्क्रीन बंद हो गई है। मैं यहीं हूँ।"); }
-            else if(Intent.ACTION_SCREEN_ON.equals(i.getAction())) { speak("आप आ गए बॉस! आपका स्वागत है।"); voiceHandler.postDelayed(() -> listen(), 1800); }
+            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { if(recognizer!=null) try{recognizer.stopListening();}catch(Exception ignored){} if(prefs.getBoolean("screen_greeting_enabled",true)) speak("बॉस, स्क्रीन बंद हो गई है। मैं यहीं हूँ।"); }
+            else if(Intent.ACTION_SCREEN_ON.equals(i.getAction())) { if(prefs.getBoolean("screen_greeting_enabled",true)) speak("आप आ गए बॉस! आपका स्वागत है।"); if(prefs.getBoolean("auto_listen_enabled",true)) voiceHandler.postDelayed(() -> listen(), 1800); }
         }};
         IntentFilter f=new IntentFilter(); f.addAction(Intent.ACTION_SCREEN_OFF); f.addAction(Intent.ACTION_SCREEN_ON);
         if(Build.VERSION.SDK_INT>=33) registerReceiver(screenReceiver,f,Context.RECEIVER_NOT_EXPORTED); else registerReceiver(screenReceiver,f);
